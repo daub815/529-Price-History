@@ -1,0 +1,100 @@
+use strict;
+use WWW::Mechanize;
+use HTML::TableExtract;
+use URI::URL;
+use URI::QueryParam;
+use Class::Struct;
+use Data::Dumper;
+use Text::Trim;
+use HTML::LinkExtractor;
+use Getopt::Long;
+use warnings;
+
+struct( Price => [
+	date => '$',
+	closing => '$'
+]);
+
+struct( Portfolio => [
+	name => '$',
+	id => '$',
+	fundUrl => '$',
+	historyUrl => '$',
+	prices => '@'
+]);
+
+my $startDate = '';
+my $endDate = '';
+
+my $result = GetOptions(
+				"startDate=s" => \$startDate, 
+				"endDate=s" => \$endDate);
+
+my $baseUrl = URI::URL->new("https://www.mypa529ipaccount.com/");
+my $fundsUrl = URI::URL->new_abs("/patpl/fundperform/fundPricePerform.do", $baseUrl);
+my $fundHistoryUrl = URI::URL->new_abs("/patpl/fundperform/fundHistory.do", $baseUrl);
+my $mech = WWW::Mechanize->new();
+print "Getting funds from $fundsUrl\n";
+$mech->get($fundsUrl) 
+		or die ("Unable to retrieve the portfolio prices.");
+
+my $headers = [ 'Name' ];
+my $te = HTML::TableExtract->new( keep_html => 1, headers => $headers );
+$te->parse($mech->content());
+my $table = $te->first_table_found;
+my @portfolios = ();
+foreach ($table->rows)
+{
+	my $link = trim($_->[0]);
+	my $le = new HTML::LinkExtractor();
+	$le->strip(1);
+	$le->parse(\$link);
+	foreach my $link (@{ $le->links })
+	{
+		my $name = $$link{_TEXT};
+		my $url = $$link{href};
+		
+		my $portfolio = Portfolio->new();
+		$portfolio->name($name);
+		$portfolio->fundUrl(URI::URL->new_abs($url, $baseUrl));
+		$portfolio->id($portfolio->fundUrl->query_param("fundid"));
+		$portfolio->historyUrl(URI::URL->new_abs($fundHistoryUrl));
+		$portfolio->historyUrl->query_form(fundid=>$portfolio->id);
+
+		$mech->get($portfolio->historyUrl);
+		$mech->submit_form(
+			form_name => 'upForm',
+			with_fields =>
+			{
+				fundid => $portfolio->id,
+				startDate => $startDate,
+				endDate => $endDate
+			}
+		);
+		
+		$headers = ['Date', 'Price'];
+		$te = HTML::TableExtract->new( keep_html => 1, headers => $headers );
+		$te->parse($mech->content());
+		$table = $te->first_table_found;
+		
+		my @prices = ();
+		open PriceCsvFile, ">$name.csv" or die $!;
+		print PriceCsvFile "Date,Close,Open,High,Low,Volume\n";
+		foreach my $row ($table->rows)
+		{
+			my $price = Price->new();
+			$price->date($row->[0]);
+			my $closing = $row->[1];
+			$closing=~ s/\$//;
+			$price->closing($closing);
+			push(@prices, $price);
+			push($portfolio->prices, $price);
+			print PriceCsvFile $price->date, ',', $price->closing, ",,,,\n";
+		}
+		close PriceCsvFile;
+
+		push(@portfolios, $portfolio);
+	}
+}
+
+print "Done\n";
