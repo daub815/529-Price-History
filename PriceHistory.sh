@@ -19,12 +19,24 @@ fi
 
 today=$(date -v -1d +%m/%d/%Y)
 
+echo "Archiving Previous Entries"
+for filename in *.csv; do
+	archive="archive/$filename"
+	echo $archive
+	if [ -f "$archive" ]; then
+		tail -n +2 "$filename" >> "$archive"
+	else
+		echo "cat \"$filename\" > \"$archive\""
+		cat "$filename" > "$archive"
+	fi
+done
+
 echo "Last Date: $last"
 echo "Today's Date: $today"
 
 perl PriceHistory.pl --startDate $last --endDate $today
 
-echo "$today" > lastDate.txt 
+echo "$today" > lastDate.txt
 
 perlbrew off
 
