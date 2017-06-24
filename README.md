@@ -1,7 +1,7 @@
 # 529-Price-History
 PA 529 Price History to CSV
 
-Perl script that will scrap the list of available funds from [PA Investment Plan's website](https://www.mypa529ipaccount.com/patpl/fundperform/fundPricePerform.do) and the closing price for each day.  
+Perl script that will scrap the list of available funds from [PA Investment Plan's website](https://www.mypa529ipaccount.com/patpl/fund/pricePerformance.cs) and the closing price for each day.  
 
 Dependencies
 - [WWW::Mechanize](http://search.cpan.org/~ether/WWW-Mechanize-1.74/lib/WWW/Mechanize.pm)
